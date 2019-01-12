@@ -42,7 +42,6 @@ def plot_metrics():
         plt.plot([i for i in range(1, len(dev_f1_vals) + 1)], dev_f1_vals, label="Dev F1 score")
         plt.plot([i for i in range(1, len(train_em_vals) + 1)], train_em_vals, label="Train EM score")
         plt.plot([i for i in range(1, len(dev_em_vals) + 1)], dev_em_vals, label="Dev EM score")
-        #plt.plot([i for i in range(1, len(train_loss_vals) + 1)], train_loss_vals, label="Train loss")
         plt.xlabel("Epochs")
         plt.ylabel("Metric value")
         plt.legend()

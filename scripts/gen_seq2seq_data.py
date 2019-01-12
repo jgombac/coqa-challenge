@@ -27,6 +27,7 @@ def _str(s):
 
 
 def tokenize_text(text):
+    text = text.encode("ascii", "ignore")
     paragraph = nlp.annotate(text, properties={
                              'annotators': 'tokenize, ssplit',
                              'outputFormat': 'json'})
@@ -81,8 +82,8 @@ if __name__ == '__main__':
                     full_str += ' <Q{}> '.format(d) + q + ' <A{}> '.format(d) + a
             full_str += ' <Q> ' + question_str
             if args.lower:
-                full_str = full_str.lower()
-                answer_str = answer_str.lower()
+                full_str = full_str.lower().encode("ascii", "ignore")
+                answer_str = answer_str.lower().encode("ascii", "ignore")
             f_src.write(full_str + '\n')
             f_tgt.write(answer_str + '\n')
             history.append((question_str, answer_str))

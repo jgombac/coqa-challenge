@@ -33,6 +33,7 @@ def _str(s):
 
 
 def process(text):
+    text = text.encode('ascii', 'ignore')
     paragraph = nlp.annotate(text, properties={
                              'annotators': 'tokenize, ssplit',
                              'outputFormat': 'json',

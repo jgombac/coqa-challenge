@@ -12,8 +12,51 @@ from collections import Counter, defaultdict
 from torch.utils.data import Dataset
 from . import constants as Constants
 from .timer import Timer
+import re
+import tqdm
+
+from pycorenlp import StanfordCoreNLP
+nlp = StanfordCoreNLP('http://localhost:9000')
 
 
+def annotate(text):
+    text = text.encode('ascii', 'ignore')
+    paragraph = nlp.annotate(text, properties={
+        'annotators': 'coref',
+        'outputFormat': 'json'})
+
+
+    sentences = paragraph["sentences"]
+    sentRes = []
+    for sent in sentences:
+        tokRes = []
+        for token in sent["tokens"]:
+            tokRes.append(token["word"])
+        sentRes.append(tokRes)
+
+    corefs = paragraph['corefs']
+    for coref in corefs:
+        subs = corefs[coref]
+        nominal = subs[0]
+        pronominal = subs[1]
+        sentRes[pronominal["sentNum"]-1][pronominal["startIndex"]-1:pronominal["endIndex"]-1] = sentRes[nominal["sentNum"]-1][nominal["startIndex"]-1:nominal["endIndex"]-1]
+
+
+    hist = sentRes[:-2]
+    curr = sentRes[-2:]
+
+    history = len(hist) // 2
+
+    result = []
+
+
+    for q, a in zip(hist[0::2], hist[1::2]):
+        result += ["<Q{}>".format(history)] + q + ["<A{}>".format(history)] + a
+        history -= 1
+
+    result += ["<Q>"] + curr[0]
+    anno_anwser = sentRes[1]
+    return result, anno_anwser
 ################################################################################
 # Dataset Prep #
 ################################################################################
@@ -42,7 +85,7 @@ class CoQADataset(Dataset):
         self.examples = []
         self.vocab = Counter()
         dataset = read_json(filename)
-        for paragraph in dataset['data']:
+        for paragraph in tqdm.tqdm(dataset['data']):
             history = []
             for qas in paragraph['qas']:
                 qas['paragraph_id'] = len(self.paragraphs)
@@ -54,11 +97,51 @@ class CoQADataset(Dataset):
                         temp.append('<Q{}>'.format(d))
                         temp.extend(q)
                         temp.append('<A{}>'.format(d))
+                        try:
+                            if a[-1] == u",":
+                                a[-1] = u"."
+                            if a[-1] != u".":
+                                a.append(u".")
+                        except:
+                            pass
+
                         temp.extend(a)
+
+                        # modifikacija zgodovine model 3
+                        # try:
+                        #     temp, dummy_anwser = annotate(re.sub(r"<[^>]*>", "", " ".join(temp + ["Dummy" "sentence"])))
+                        # except:
+                        #     pass
+
+
                 temp.append('<Q>')
                 temp.extend(qas['annotated_question']['word'])
+
+                # trenutno vprašanje
+                anno_anwser = qas['annotated_answer']['word']
+                try:
+                    if anno_anwser[-1] == u",":
+                        anno_anwser[-1] = u"."
+                    if anno_anwser[-1] != u".":
+                        anno_anwser.append(u".")
+                except:
+                    pass
+
+                # modifikacija model 1 2
+                try:
+                    temp, anno_anwser = annotate(re.sub(r"<[^>]*>", "", " ".join(temp + anno_anwser)))
+                except:
+                    pass
+
+                # this is only to keep track of processed items
                 history.append((qas['annotated_question']['word'], qas['annotated_answer']['word']))
+
+                # override with processed items
                 qas['annotated_question']['word'] = temp
+
+                #model z odgovori model 2
+                #qas['annotated_answer']['word'] = anno_anwser
+
                 self.examples.append(qas)
                 question_lens.append(len(qas['annotated_question']['word']))
                 paragraph_lens.append(len(paragraph['annotated_context']['word']))
@@ -68,6 +151,7 @@ class CoQADataset(Dataset):
                     self.vocab[w] += 1
                 for w in qas['annotated_answer']['word']:
                     self.vocab[w] += 1
+
             self.paragraphs.append(paragraph)
         print('Load {} paragraphs, {} examples.'.format(len(self.paragraphs), len(self.examples)))
         print('Paragraph length: avg = %.1f, max = %d' % (np.average(paragraph_lens), np.max(paragraph_lens)))

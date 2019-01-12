@@ -71,7 +71,8 @@ class StackedBRNN(nn.Module):
         lengths = x_mask.eq(0).long().sum(1).squeeze()
         _, idx_sort = torch.sort(lengths, dim=0, descending=True)
         _, idx_unsort = torch.sort(idx_sort, dim=0)
-
+        #print("IDX_SORT", type(idx_sort), idx_sort)
+        #print("LENGTHS", type(lengths), lengths)
         lengths = list(lengths[idx_sort])
         # Sort x
         rnn_input = x.index_select(0, idx_sort)

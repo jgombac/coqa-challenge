@@ -10,6 +10,7 @@ from utils.timer import Timer
 from utils.logger import ModelLogger
 from utils.eval_utils import AverageMeter
 from utils.data_utils import sanitize_input, vectorize_input
+import pickle
 
 
 class ModelHandler(object):
@@ -26,11 +27,44 @@ class ModelHandler(object):
             self.device = torch.device('cpu')
         else:
             self.device = torch.device('cuda' if cuda_id < 0 else 'cuda:%d' % cuda_id)
+        print("preparing datasets...")
+        datasets = None # prepare_datasets(config)
+        print(config["pretrained"])
 
-        datasets = prepare_datasets(config)
-        train_set = datasets['train']
-        dev_set = datasets['dev']
-        test_set = datasets['test']
+        datasets = None
+
+        if config["pretrained"] == "rc_models_20":
+            # baseline
+            with open("data/coqa_baseline_data.pkl", "rb") as f_in:
+                datasets = pickle.load(f_in)
+
+        elif config["pretrained"] == "rc_models_modified_20":
+            # samo zgodovina
+            with open("data/coqa_history_data.pkl", "rb") as f_in:
+                datasets = pickle.load(f_in)
+
+        elif config["pretrained"] == "rc_models_modified_full_20":
+            # trenutno vprasanje in odgovor
+            with open("data/coqa_full_data.pkl", "rb") as f_in:
+                datasets = pickle.load(f_in)
+
+        elif config["pretrained"] == "rc_models_modified_full_noA_20":
+            # trenutno vprasanje
+            with open("data/coqa_full_noA_data.pkl", "rb") as f_in:
+                datasets = pickle.load(f_in)
+
+        else:
+            print("not a valid pretrained model")
+            exit()
+
+
+        train_set = None #datasets['train']
+        dev_set = None #datasets['dev']
+        test_set = datasets['dev']
+        print("datasets prepared")
+
+        # print(train_set.examples[:5])
+        exit()
 
         # Evaluation Metrics:
         self._train_loss = AverageMeter()
@@ -165,12 +199,13 @@ class ModelHandler(object):
             x_batch = vectorize_input(input_batch, self.config, training=training, device=self.device)
             if not x_batch:
                 continue  # When there are no target spans present in the batch
-
+            # print("running train predictions")
             res = self.model.predict(x_batch, update=training, out_predictions=out_predictions)
 
             loss = res['loss']
             f1 = res['f1']
             em = res['em']
+            # print("updating metrics")
             self._update_metrics(loss, f1, em, x_batch['batch_size'], training=training)
 
             if training:
